@@ -21,7 +21,7 @@ for (const file of files) {
     console.error(`Tab character found in ${file}`);
     failed = true;
   }
-  if (/\s+$/m.test(text)) {
+  if (/[ \t]+$/m.test(text)) {
     console.error(`Trailing whitespace found in ${file}`);
     failed = true;
   }
