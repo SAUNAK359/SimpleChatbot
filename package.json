@@ -1,0 +1,11 @@
+{
+  "name": "simplechatbot-autoforge-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dependency-free SimpleChatbot demo for AutoForge end-to-end CI validation",
+  "scripts": {
+    "test": "node scripts/test.js",
+    "lint": "node scripts/lint.js",
+    "build": "node scripts/build.js"
+  }
+}
