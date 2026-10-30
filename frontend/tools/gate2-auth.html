@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AutoForge Gate 2 - Auth & GitHub</title>
+  <style>
+    :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;background:#050507;color:#f4f6fb}
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;background:radial-gradient(circle at 15% 0%,rgba(255,40,70,.16),transparent 34%),radial-gradient(circle at 90% 10%,rgba(35,95,255,.18),transparent 36%),#050507}
+    main{width:min(1050px,calc(100% - 32px));margin:auto;padding:42px 0 80px}.badge{display:inline-flex;border:1px solid #2b2f39;background:#0d0f14;border-radius:999px;padding:8px 12px;color:#aab0bf;font-size:12px}
+    h1{font-size:clamp(38px,6vw,68px);letter-spacing:-.05em;margin:18px 0 8px}.sub{color:#89909f;max-width:760px;line-height:1.65}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:28px}.card{border:1px solid #20242d;border-radius:18px;background:rgba(12,14,19,.88);padding:18px;box-shadow:0 22px 70px rgba(0,0,0,.28)}
+    .card h2{font-size:16px;margin:0 0 7px}.card p{color:#858c9a;font-size:13px;line-height:1.55;margin:0 0 14px}.actions{display:flex;gap:9px;flex-wrap:wrap}.btn{border:1px solid #313747;background:#141823;color:#f7f7fb;border-radius:10px;padding:10px 13px;cursor:pointer}.btn.primary{background:linear-gradient(135deg,#dc234a,#5531d8);border-color:#c72d52}.btn:hover{transform:translateY(-1px)}
+    pre{margin:20px 0 0;background:#07090d;border:1px solid #1d222c;border-radius:15px;padding:16px;min-height:220px;max-height:460px;overflow:auto;white-space:pre-wrap;color:#b8c0d1;font:12px/1.55 Consolas,monospace}.ok{color:#43df94}.bad{color:#ff617e}.warn{color:#ffc766}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}.status{font:12px Consolas,monospace}.input{background:#080b10;border:1px solid #2c3240;color:#fff;padding:10px 12px;border-radius:10px;min-width:230px}
+    @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<main>
+  <span class="badge">AutoForge Production Integration · Gate 2</span>
+  <h1>Auth → GitHub → Repositories</h1>
+  <p class="sub">This page uses the same production runtime and credentialed API client as Application 1. Google sign-in and GitHub authorization open in a second tab so this gate stays available for session verification.</p>
+
+  <div class="grid">
+    <section class="card"><h2>1 · Control Plane</h2><p>Verify Application 2 from the browser origin.</p><div class="actions"><button class="btn" onclick="health()">Check health</button></div><div id="healthStatus" class="row status"></div></section>
+    <section class="card"><h2>2 · Google Session</h2><p>Open Google login. Finish sign-in in the new tab, then return here.</p><div class="actions"><button class="btn primary" onclick="googleLogin()">Open Google sign-in</button><button class="btn" onclick="checkSession()">Verify session</button></div><div id="sessionStatus" class="row status"></div></section>
+    <section class="card"><h2>3 · GitHub Connection</h2><p>Only do this after Google session verification succeeds.</p><div class="actions"><button class="btn primary" onclick="githubOAuth()">Open GitHub OAuth</button><button class="btn" onclick="installUrl()">GitHub App install URL</button><button class="btn" onclick="installations()">List installations</button></div><div id="githubStatus" class="row status"></div></section>
+    <section class="card"><h2>4 · Repository Discovery</h2><p>Use an installation ID returned by the previous step.</p><div class="row"><input id="installationId" class="input" placeholder="GitHub installation ID"/><button class="btn" onclick="repositories()">List repositories</button></div><div id="repoStatus" class="row status"></div></section>
+  </div>
+
+  <pre id="output">Gate 2 ready. Start with “Check health”.</pre>
+</main>
+<script src="/prod/runtime-config.js"></script>
+<script src="/prod/api-client.js"></script>
+<script>
+const out=document.getElementById('output');
+const stamp=()=>new Date().toLocaleTimeString();
+function log(label,data){const body=typeof data==='string'?data:JSON.stringify(data,null,2);out.textContent=`[${stamp()}] ${label}\n${body}\n\n`+out.textContent}
+function status(id,text,kind='ok'){const el=document.getElementById(id);el.className='row status '+kind;el.textContent=text}
+function err(label,e){const d={name:e?.name,message:e?.message,status:e?.status,body:e?.body,url:e?.url};log(label,d);return d}
+function popup(url,name){const w=window.open(url,name,'noopener,noreferrer');if(!w)alert('Popup blocked. Allow popups for localhost:5173 and try again.');return w}
+async function health(){try{const d=await AFApi.health();status('healthStatus','HEALTH=PASS','ok');log('HEALTH',d)}catch(e){status('healthStatus','HEALTH=FAIL','bad');err('HEALTH_ERROR',e)}}
+function googleLogin(){localStorage.setItem('af-gate2-google-started',Date.now().toString());popup(AF_RUNTIME.apiBaseUrl+'/api/v1/auth/google/start','af-google-auth');status('sessionStatus','Google sign-in opened. Finish it, then click Verify session.','warn')}
+async function checkSession(){try{const d=await AFApi.projects();status('sessionStatus','SESSION=AUTHENTICATED','ok');log('AUTHENTICATED_PROJECTS',d)}catch(e){const d=err('SESSION_CHECK_ERROR',e);if(d.status===401||d.status===403)status('sessionStatus','SESSION=NOT_AUTHENTICATED','bad');else status('sessionStatus','SESSION=ERROR','bad')}}
+function githubOAuth(){popup(AF_RUNTIME.apiBaseUrl+'/api/v1/github/oauth/start','af-github-oauth');status('githubStatus','GitHub OAuth opened. Complete it, then List installations.','warn')}
+async function installUrl(){try{const d=await AFApi.githubInstallUrl();log('GITHUB_INSTALL_URL',d);const url=typeof d==='string'?d:(d?.url||d?.install_url||d?.installUrl);if(url){popup(url,'af-github-install');status('githubStatus','INSTALL_URL=OPENED','ok')}else{status('githubStatus','Install URL returned; inspect output.','warn')}}catch(e){status('githubStatus','INSTALL_URL=FAIL','bad');err('GITHUB_INSTALL_URL_ERROR',e)}}
+function extractInstalls(d){if(Array.isArray(d))return d;if(Array.isArray(d?.installations))return d.installations;if(Array.isArray(d?.items))return d.items;return []}
+async function installations(){try{const d=await AFApi.githubInstallations();const list=extractInstalls(d);status('githubStatus',`INSTALLATIONS=${list.length}`,'ok');log('GITHUB_INSTALLATIONS',d);const first=list[0];const id=first?.id||first?.installation_id||first?.installationId;if(id)document.getElementById('installationId').value=id}catch(e){status('githubStatus','INSTALLATIONS=FAIL','bad');err('GITHUB_INSTALLATIONS_ERROR',e)}}
+async function repositories(){const id=document.getElementById('installationId').value.trim();if(!id){status('repoStatus','INSTALLATION_ID_REQUIRED','warn');return}try{const d=await AFApi.githubRepositories(id);status('repoStatus','REPOSITORIES=PASS','ok');log('GITHUB_REPOSITORIES',d)}catch(e){status('repoStatus','REPOSITORIES=FAIL','bad');err('GITHUB_REPOSITORIES_ERROR',e)}}
+health();
+</script>
+</body>
+</html>
